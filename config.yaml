@@ -1,0 +1,37 @@
+# Central config so nothing is hardcoded across scripts.
+data:
+  # Original notebook pulled this from a Google Drive share link on every run.
+  # For a real pipeline, download it once and commit/store it properly (see data/README below).
+  raw_path: "data/fossil_data.csv"
+  target_column: "age"
+  categorical_columns: ["taxon_name", "class", "phylum", "lithology", "environment"]
+
+split:
+  test_size: 0.2
+  random_state: 42
+
+model:
+  artifact_path: "models/xgb_tuned.pkl"
+  scaler_path: "models/scaler.pkl"
+  columns_path: "models/train_columns.pkl"
+
+mlflow:
+  tracking_uri: "sqlite:///mlflow.db"
+  experiment_name: "fossil-age-regression"
+
+xgb_baseline:
+  n_estimators: 100
+  learning_rate: 0.1
+  max_depth: 5
+  random_state: 42
+
+xgb_search:
+  n_iter: 30
+  cv: 5
+  random_state: 42
+  param_distributions:
+    n_estimators: [50, 300]        # randint low, high
+    learning_rate: [0.01, 0.30]    # uniform low, low+width
+    max_depth: [3, 10]
+    subsample: [0.5, 1.0]
+    colsample_bytree: [0.5, 1.0]

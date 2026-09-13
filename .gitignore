@@ -1,0 +1,8 @@
+﻿data/fossil_data.csv
+models/*.pkl
+mlflow.db
+mlruns/
+__pycache__/
+*.pyc
+.terraform/
+terraform.tfstate*

@@ -1,0 +1,8 @@
+# Extra dependencies only needed for the original notebook's EDA plots and
+# neural-net comparison cells (not used by run_pipeline.py).
+# NOTE: tensorflow does not yet publish wheels for Python 3.14 on Windows.
+# If you need it, use Python 3.11 or 3.12 in a separate virtual environment.
+seaborn
+matplotlib
+statsmodels
+tensorflow

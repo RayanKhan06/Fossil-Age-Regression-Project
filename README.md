@@ -1,144 +1,121 @@
-# Fossil Age Prediction
+# Fossil Age Regression — MLOps Pipeline
 
-A supervised machine learning project that predicts the **geological age of fossils** (in millions of years) using paleontological and geospatial features. Four regression models were benchmarked and optimized, with a tuned XGBoost achieving **R² = 0.990** and **RMSE = 9.55 Myr**.
+Predicting fossil age (millions of years) from taxonomic and geospatial
+features, built out from a single Jupyter notebook into a full pipeline:
+tracked experiments, a served API, a container, and cloud infrastructure
+provisioned as code.
 
----
+**Model performance:** Tuned XGBoost, R² ≈ 0.99, RMSE ≈ 9.7 Myr on held-out
+test data — a significant improvement over Lasso (R² ≈ 0.88) and untuned
+XGBoost (R² ≈ 0.99 baseline).
 
-## Project Overview
+## Architecture
 
-| | |
+```
+Notebook (EDA + model comparison)
+        │
+        ▼
+Modular pipeline (src/, run_pipeline.py)
+   ├─ load → clean → encode → split/scale
+   ├─ train: baseline, Lasso, XGBoost, tuned XGBoost (RandomizedSearchCV)
+   └─ logged to MLflow (params, metrics, model registry)
+        │
+        ▼
+FastAPI service (app/)
+   ├─ GET  /health   — model load status
+   └─ POST /predict  — fossil features in, predicted age out
+        │
+        ▼
+Docker (Dockerfile)
+   — packages the API + trained model into a single container image
+        │
+        ▼
+Terraform (terraform/) → AWS
+   ├─ ECR             — container image registry
+   ├─ ECS Fargate     — runs the container, no servers to manage
+   └─ Application Load Balancer — public HTTP endpoint
+```
+
+## Why each layer exists
+
+| Layer | Problem it solves |
 |---|---|
-| **Goal** | Predict fossil age (Myr) from taxonomic and environmental features |
-| **Type** | Supervised Regression |
-| **Best Model** | Tuned XGBoost (R² = 0.990, RMSE = 9.55) |
-| **Tools** | Python, scikit-learn, XGBoost, TensorFlow/Keras, pandas, seaborn |
+| Modular pipeline | Notebook cells aren't reusable, testable, or callable from anywhere else |
+| MLflow | Otherwise every run's metrics live only in scrollback, with no way to compare |
+| FastAPI | A trained model sitting in a `.pkl` file isn't usable by anything else |
+| Docker | "Works on my machine" — a container runs identically anywhere |
+| Terraform + AWS | Manual cloud console clicking isn't reproducible or version-controlled |
 
----
-
-## Dataset
-
-The dataset contains paleontological records with the following features:
-
-| Feature | Description |
-|---|---|
-| `taxon_name` | Species/genus name of the fossil |
-| `class` | Biological class (e.g., Trilobita, Lingulata) |
-| `phylum` | Biological phylum (e.g., Arthropoda, Brachiopoda) |
-| `lithology` | Rock type the fossil was found in (e.g., shale, limestone) |
-| `environment` | Depositional environment (e.g., marine indet.) |
-| `latitude` | Geographic latitude of fossil discovery site |
-| `longitude` | Geographic longitude of fossil discovery site |
-| `age` *(target)* | Geological age in millions of years (Myr) |
-
----
-
-## Methodology
-
-### 1. Exploratory Data Analysis (EDA)
-- Distribution analysis via KDE plots and pairplot matrix
-- Outlier detection on numerical features
-- Correlation inspection between geospatial features and target age
-
-### 2. Preprocessing
-- **Categorical encoding**: Label encoding + one-hot encoding for `taxon_name`, `class`, `phylum`, `lithology`, `environment`
-- **Feature scaling**: `StandardScaler` applied to all features
-- **Train/test split**: Standard 80/20 stratified split
-
-### 3. Models Trained
-
-| Model | RMSE | R² |
-|---|---|---|
-| Lasso Regression | — | — |
-| XGBoost (baseline) | ~20 | ~0.96 |
-| Simple Neural Network | 110.42 | — |
-| Complex Neural Network | 44.50 | — |
-| **Tuned XGBoost** | **9.55** | **0.990** |
-
-### 4. Hyperparameter Tuning
-`RandomizedSearchCV` with 5-fold cross-validation was used to tune XGBoost over:
-
-```python
-{
-    'n_estimators': randint(100, 400),
-    'max_depth': randint(3, 10),
-    'learning_rate': uniform(0.05, 0.3),
-    'subsample': uniform(0.5, 0.5),
-    'colsample_bytree': uniform(0.5, 0.5)
-}
-```
-
-**Best parameters found:**
-```
-n_estimators    : 271
-max_depth       : 6
-learning_rate   : 0.1733
-subsample       : 0.5697
-colsample_bytree: 0.7377
-```
-
-### 5. Evaluation
-- Metrics: MSE, RMSE, R²
-- Residual scatter plots generated for all 4 models to assess bias and variance across the age range
-
----
-
-## Results
-
-The **tuned XGBoost regressor** was selected as the final model:
+## Repo structure
 
 ```
-Tuned XGBoost Test MSE  : 91.16
-Tuned XGBoost Test RMSE : 9.55
-Tuned XGBoost Test R²   : 0.9900
+├── Fossil_Age_Project.ipynb   # original EDA + model comparison notebook
+├── config.yaml                # paths, hyperparameter search space, MLflow settings
+├── run_pipeline.py            # entry point: trains all 4 models, logs to MLflow
+├── requirements.txt           # core pipeline + API dependencies
+├── requirements-notebook.txt  # extra deps for the notebook only (plots, TensorFlow)
+├── Dockerfile
+├── src/
+│   ├── data.py                # load_data()
+│   ├── preprocess.py          # cleaning, encoding, train/test split, scaling
+│   ├── train.py                # baseline, Lasso, XGBoost, tuned XGBoost
+│   └── evaluate.py            # MSE / RMSE / R²
+├── app/
+│   ├── main.py                 # FastAPI app: /health, /predict
+│   └── schemas.py              # request/response models
+└── terraform/
+    ├── main.tf, ecr.tf, network.tf, alb.tf, iam.tf, ecs.tf, outputs.tf
+    └── DEPLOY.md               # step-by-step AWS deployment guide
 ```
 
-Neural networks underperformed relative to XGBoost on this structured tabular dataset, consistent with the known strength of gradient boosting methods on feature-rich tabular data.
-
----
-
-## Installation & Usage
+## Running it locally
 
 ```bash
-# Clone the repo
-git clone https://github.com/your-username/fossil-age-prediction.git
-cd fossil-age-prediction
-
-# Install dependencies
 pip install -r requirements.txt
 
-# Launch the notebook
-jupyter notebook Fossil_Age_Project.ipynb
+# Get fossil_data.csv (see data/README.md) and place it at data/fossil_data.csv
+
+python run_pipeline.py              # trains models, logs to MLflow, saves the tuned model
+mlflow ui --backend-store-uri sqlite:///mlflow.db   # view experiment history
+
+uvicorn app.main:app --reload       # serve the API locally
+# → http://127.0.0.1:8000/docs
 ```
 
-### Requirements
-```
-pandas
-numpy
-matplotlib
-seaborn
-scikit-learn
-xgboost
-tensorflow
-statsmodels
+## Running it in Docker
+
+```bash
+docker build -t fossil-age-api .
+docker run -p 8000:8000 fossil-age-api
 ```
 
----
+## Deploying to AWS
 
-## Repository Structure
+See [`terraform/DEPLOY.md`](terraform/DEPLOY.md) for the full walkthrough
+(ECR push, Terraform apply, teardown). Summary: Terraform provisions an ECR
+repository and an ECS Fargate service behind an Application Load Balancer;
+the Docker image built above gets pushed to ECR and pulled by ECS at
+deploy time.
 
+```bash
+cd terraform
+terraform init
+terraform apply -target=aws_ecr_repository.app   # create the registry first
+# build, tag, and push the image to it (see DEPLOY.md)
+terraform apply                                   # create everything else
+terraform output load_balancer_url                # your public URL
 ```
-fossil-age-prediction/
-│
-├── Fossil_Age_Project.ipynb   # Main analysis notebook
-├── README.md                  # Project documentation
-└── requirements.txt           # Python dependencies
-```
 
----
+**Note:** running infrastructure incurs a small hourly cost. Run
+`terraform destroy` when not actively demoing the deployment.
 
-## Key Takeaways
+## Known limitations / notes
 
-- XGBoost significantly outperforms neural networks on this structured paleontological dataset
-- Taxonomic features (`class`, `phylum`, `taxon_name`) are strong predictors of geological age
-- Hyperparameter tuning via `RandomizedSearchCV` reduced RMSE by ~50% over the baseline XGBoost model
-- Geospatial coordinates (`latitude`, `longitude`) provide additional signal beyond taxonomy alone
+- The one-hot encoding step in `src/preprocess.py` carries over a small bug
+  from the original notebook (`lithology` gets filled with `class`'s mode,
+  not its own) — kept intentionally so results match the notebook; flagged
+  with a `TODO` in code for anyone who wants to fix and re-tune.
+- The AWS deployment runs a single ECS task (no redundancy) — fine for a
+  portfolio demo, not meant to represent a production-scale setup.
+- Dataset is not committed to the repo (see `data/README.md`); the original
+  notebook pulled it from a Google Drive link.

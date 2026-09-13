@@ -1,0 +1,11 @@
+# Core pipeline dependencies (what run_pipeline.py actually needs)
+pandas
+numpy
+scikit-learn
+xgboost
+scipy
+pyyaml
+joblib
+mlflow
+fastapi
+uvicorn[standard]
