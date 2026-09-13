@@ -99,6 +99,19 @@ terraform output load_balancer_url                # your public URL
 
 **Note:** running this infrastructure costs a small amount per hour. Run `terraform destroy` (or delete the resources manually) when you're not actively demoing it.
 
+## Live deployment screenshots
+
+The API was deployed to AWS (ECS Fargate behind an Application Load Balancer) and confirmed working end to end. The infrastructure has since been torn down to avoid ongoing costs, but here's proof it ran:
+
+**Health check**
+![Health check response](docs/screenshots/fossil-aws-health.png)
+
+**Predict request**
+![Predict request form](docs/screenshots/fossil-aws-predict1.png)
+
+**Predict response**
+![Predict response](docs/screenshots/fossil-aws-predict2.png)
+
 ## Known limitations
 
 - The one-hot encoding step in `src/preprocess.py` carries over a small bug from the original notebook. `lithology` gets filled with `class`'s mode instead of its own. It's kept as is so results match the notebook, but there's a `TODO` in the code for anyone who wants to fix it and re-tune afterward.
